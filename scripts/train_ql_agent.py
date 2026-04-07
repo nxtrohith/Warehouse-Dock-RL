@@ -10,7 +10,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.env import WarehouseDockEnv
-from src.qlearing_agent import QLearningAgent, StateEncoder
+from src.qlearning_agent import QLearningAgent, StateEncoder
 
 
 def train(

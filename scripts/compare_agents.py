@@ -11,7 +11,7 @@ if str(ROOT) not in sys.path:
 
 from src.config import VALID_ACTIONS
 from src.env import WarehouseDockEnv
-from src.qlearing_agent import QLearningAgent, StateEncoder
+from src.qlearning_agent import QLearningAgent, StateEncoder
 
 
 def run_random_baseline(num_episodes: int = 10, max_steps: int = 32) -> float:
@@ -36,9 +36,9 @@ def run_random_baseline(num_episodes: int = 10, max_steps: int = 32) -> float:
     return sum(total_rewards) / len(total_rewards)
 
 
-def run_qlearing_agent(num_episodes: int = 10, max_steps: int = 32) -> float:
+def run_qlearning_agent(num_episodes: int = 10, max_steps: int = 32) -> float:
     """Run environment with trained Q-Learning agent."""
-    from src.qlearing_agent import QLearningAgent, StateEncoder
+    from src.qlearning_agent import QLearningAgent, StateEncoder
 
     env = WarehouseDockEnv(seed=7, max_steps=max_steps, enable_arrivals=False)
     state_encoder = StateEncoder()
@@ -84,7 +84,7 @@ def main() -> None:
     print(f"Random baseline average reward: {random_avg:.2f}")
 
     print("\nTraining and evaluating Q-Learning agent...")
-    ql_avg = run_qlearing_agent(num_episodes=10)
+    ql_avg = run_qlearning_agent(num_episodes=10)
     print(f"Q-Learning average reward: {ql_avg:.2f}")
 
     improvement = ql_avg - random_avg

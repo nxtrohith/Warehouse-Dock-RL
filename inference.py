@@ -61,6 +61,7 @@ BENCHMARK = os.getenv("BENCHMARK", "warehouse_dock")
 MAX_STEPS = int(os.getenv("MAX_STEPS", "32"))
 TEMPERATURE = float(os.getenv("TEMPERATURE", "0.2"))
 MAX_TOKENS = int(os.getenv("MAX_TOKENS", "64"))
+VALID_TASK_NAMES = {"task_1", "task_2", "task_3"}
 
 
 SYSTEM_PROMPT = textwrap.dedent(
@@ -155,9 +156,7 @@ def _score_for_task(task_name: str, metrics: Mapping[str, Any]) -> float:
         return task_2_grader(metrics)
     if task_name == "task_3":
         return task_3_grader(metrics)
-
-    # Fallback: keep score valid in [0, 1] if an unknown task is passed.
-    return max(0.0, min(1.0, task_1_grader(metrics)))
+    raise ValueError(f"Unsupported TASK_NAME '{task_name}'. Expected one of: {sorted(VALID_TASK_NAMES)}")
 
 
 def run_episode() -> None:
@@ -182,6 +181,8 @@ def run_episode() -> None:
     try:
         if not API_KEY:
             raise RuntimeError("Missing API key: set API_KEY, GROQ_API_KEY, HF_TOKEN, or OPENAI_API_KEY")
+        if TASK_NAME not in VALID_TASK_NAMES:
+            raise RuntimeError(f"Invalid TASK_NAME '{TASK_NAME}'. Expected one of: {sorted(VALID_TASK_NAMES)}")
 
         client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
         env = WarehouseDockEnv(max_steps=MAX_STEPS)
@@ -275,8 +276,8 @@ def run_episode() -> None:
             if callable(close_fn):
                 try:
                     close_fn()
-                except Exception:
-                    pass
+                except Exception as close_exc:
+                    print(f"[WARN] close_failed={' '.join(str(close_exc).split())}", file=sys.stderr, flush=True)
         log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
 
     if exit_code != 0:

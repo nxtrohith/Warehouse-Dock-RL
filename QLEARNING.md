@@ -16,7 +16,7 @@ The trained agent achieves **2.5x better performance** than random action select
 
 ## Core Components
 
-### 1. StateEncoder (`src/qlearing_agent.py`)
+### 1. StateEncoder (`src/qlearning_agent.py`)
 
 Converts continuous observations into discrete state indices for the Q-table:
 
@@ -31,7 +31,7 @@ state_idx = encoder.encode(obs)  # Observation → State index
 - `time_remaining`: 8 bins (0-7+ steps)
 - **Total States**: 10 × 8 × 8 = 640 discrete states
 
-### 2. QLearningAgent (`src/qlearing_agent.py`)
+### 2. QLearningAgent (`src/qlearning_agent.py`)
 
 Implements the tabular Q-Learning algorithm:
 
@@ -79,7 +79,7 @@ Compares Q-Learning agent vs random baseline.
 
 ```python
 from src.env import WarehouseDockEnv
-from src.qlearing_agent import QLearningAgent, StateEncoder
+from src.qlearning_agent import QLearningAgent, StateEncoder
 
 # Initialize
 env = WarehouseDockEnv(max_steps=32)
@@ -119,7 +119,7 @@ Actions only succeed if:
 Run all Q-Learning tests:
 
 ```bash
-python -m unittest tests.test_qlearing_agent -v
+python -m unittest tests.test_qlearning_agent -v
 ```
 
 **Coverage:**
@@ -150,7 +150,7 @@ The agent shows steady improvement with declining exploration, indicating succes
 
 ## Files
 
-- `src/qlearing_agent.py`: Core agent implementation
-- `tests/test_qlearing_agent.py`: Unit tests
+- `src/qlearning_agent.py`: Core agent implementation
+- `tests/test_qlearning_agent.py`: Unit tests
 - `scripts/train_ql_agent.py`: Full training pipeline
 - `scripts/compare_agents.py`: Baseline comparison
