@@ -1,0 +1,123 @@
+# OpenEnv Specification for Warehouse Dock Scheduling
+
+version: "1.0"
+name: "WarehouseDockEnv"
+description: |
+  A reinforcement learning environment for optimizing dock scheduling in a warehouse.
+  The agent assigns trucks to docks to minimize waiting time and maximize efficiency.
+
+actions:
+  type: "discrete"
+  num_actions: 4
+  description: |
+    - Action 0: HOLD (do nothing)
+    - Action 1: Assign front truck to Dock 0
+    - Action 2: Assign front truck to Dock 1
+    - Action 3: Assign front truck to Dock 2
+
+observations:
+  type: "dict"
+  properties:
+    waiting_trucks:
+      type: "integer"
+      description: "Number of trucks waiting in the queue."
+    queue_unload_times:
+      type: "array"
+      items:
+        type: "integer"
+      description: "Unload times for the next K trucks in the queue."
+    dock_status:
+      type: "array"
+      items:
+        type: "integer"
+      description: "Status of each dock (0 = idle, 1 = busy)."
+    unloading_times:
+      type: "array"
+      items:
+        type: "integer"
+      description: "Remaining unload times for trucks at each dock."
+    time_remaining:
+      type: "integer"
+      description: "Number of steps remaining in the episode."
+
+rewards:
+  description: |
+    - Positive reward for valid assignments and completed unloads.
+    - Negative reward for idle docks and invalid actions.
+
+done:
+  description: |
+    - Episode ends when max steps are reached or all trucks are processed.
+
+info:
+  description: "Additional debugging information returned by the environment."
+
+tasks:
+  - id: task_1
+    title: "Basic dock assignment"
+    difficulty: "easy"
+    objective: |
+      Learn the core loop by assigning the front truck to any idle dock and avoiding invalid actions.
+      The policy should keep the queue moving in a deterministic, no-arrival scenario.
+    grader:
+      type: "python"
+      path: "src/task_graders.py"
+      function: "task_1_grader"
+      scoring:
+        score_range: [0.0, 1.0]
+        formula: "score = 0.4 * no_invalid + 0.3 * early_assignment + 0.3 * completion_rate"
+        deterministic: true
+      acceptance:
+        no_invalid_actions: true
+        early_assignment_steps: 2
+        completion_required: true
+
+  - id: task_2
+    title: "Queue reduction policy"
+    difficulty: "medium"
+    objective: |
+      Prioritize assignment decisions to keep dock utilization high and waiting trucks low.
+      The agent should balance HOLD versus assignment decisions to minimize idle docks while trucks are waiting.
+    grader:
+      type: "python"
+      path: "src/task_graders.py"
+      function: "task_2_grader"
+      scoring:
+        score_range: [0.0, 1.0]
+        formula: "score = 0.35 * no_invalid + 0.35 * normalized_queue_reduction + 0.30 * dock_utilization"
+        deterministic: true
+      acceptance:
+        max_mean_waiting_trucks: 2.0
+        max_idle_dock_steps: 3
+        no_invalid_actions: true
+
+  - id: task_3
+    title: "Full warehouse automation"
+    difficulty: "hard"
+    objective: |
+      Operate the warehouse dock scheduler under stochastic arrivals and sustain strong throughput over a full episode.
+      The policy should generalize beyond the initial queue and remain robust to changing dock availability.
+    grader:
+      type: "python"
+      path: "src/task_graders.py"
+      function: "task_3_grader"
+      scoring:
+        score_range: [0.0, 1.0]
+        formula: "score = 0.30 * no_invalid + 0.30 * reward_quality + 0.20 * throughput + 0.20 * queue_clearance"
+        deterministic: true
+      acceptance:
+        min_average_reward: 20.0
+        min_throughput: 0.6
+        no_invalid_actions: true
+
+validation:
+  required_methods:
+    - reset
+    - step
+    - state
+  required_properties:
+    - actions
+    - observations
+    - rewards
+    - done
+    - info
