@@ -50,18 +50,31 @@ _load_local_dotenv()
 
 # Required by organizer environment configuration.
 LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
-API_KEY = os.getenv("API_KEY") or os.getenv("GROQ_API_KEY") or os.getenv("HF_TOKEN") or os.getenv("OPENAI_API_KEY")
-
-# Only these two values have defaults.
-API_BASE_URL = os.getenv("API_BASE_URL", "https://api.groq.com/openai/v1")
-MODEL_NAME = os.getenv("MODEL_NAME", "mixtral-8x7b-32768")
+HF_TOKEN = os.getenv("HF_TOKEN")
+API_BASE_URL = os.getenv("API_BASE_URL")
+MODEL_NAME = os.getenv("MODEL_NAME")
 
 TASK_NAME = os.getenv("TASK_NAME", "task_1")
 BENCHMARK = os.getenv("BENCHMARK", "warehouse_dock")
 MAX_STEPS = int(os.getenv("MAX_STEPS", "32"))
+ENV_SEED = int(os.getenv("ENV_SEED", "7"))
 TEMPERATURE = float(os.getenv("TEMPERATURE", "0.2"))
 MAX_TOKENS = int(os.getenv("MAX_TOKENS", "64"))
+POLICY_MODE = os.getenv("POLICY_MODE", "heuristic").strip().lower()
 VALID_TASK_NAMES = {"task_1", "task_2", "task_3"}
+VALID_POLICY_MODES = {"heuristic", "llm"}
+
+
+def _validate_required_env() -> None:
+    missing: List[str] = []
+    if not API_BASE_URL:
+        missing.append("API_BASE_URL")
+    if not MODEL_NAME:
+        missing.append("MODEL_NAME")
+    if not HF_TOKEN:
+        missing.append("HF_TOKEN")
+    if missing:
+        raise RuntimeError(f"Missing required environment variable(s): {', '.join(missing)}")
 
 
 SYSTEM_PROMPT = textwrap.dedent(
@@ -149,6 +162,19 @@ def parse_action(action_text: str) -> tuple[int, Optional[str]]:
     return raw_action, None
 
 
+def select_heuristic_action(obs: Mapping[str, Any]) -> int:
+    """Deterministic baseline policy for reproducible local scoring."""
+    waiting_trucks = int(obs.get("waiting_trucks", 0) or 0)
+    if waiting_trucks <= 0:
+        return ACTION_HOLD
+
+    dock_status = obs.get("dock_status", [])
+    for idx, status in enumerate(dock_status):
+        if int(status) == 0:
+            return idx + 1
+    return ACTION_HOLD
+
+
 def _score_for_task(task_name: str, metrics: Mapping[str, Any]) -> float:
     if task_name == "task_1":
         return task_1_grader(metrics)
@@ -176,16 +202,22 @@ def run_episode() -> None:
     idle_dock_steps = 0
     baseline_reward = 0.0
 
-    log_start(task=TASK_NAME, env=BENCHMARK, model=MODEL_NAME)
+    log_start(task=TASK_NAME, env=BENCHMARK, model=MODEL_NAME or "")
 
     try:
-        if not API_KEY:
-            raise RuntimeError("Missing API key: set API_KEY, GROQ_API_KEY, HF_TOKEN, or OPENAI_API_KEY")
         if TASK_NAME not in VALID_TASK_NAMES:
             raise RuntimeError(f"Invalid TASK_NAME '{TASK_NAME}'. Expected one of: {sorted(VALID_TASK_NAMES)}")
+        if POLICY_MODE not in VALID_POLICY_MODES:
+            raise RuntimeError(
+                f"Invalid POLICY_MODE '{POLICY_MODE}'. Expected one of: {sorted(VALID_POLICY_MODES)}"
+            )
 
-        client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
-        env = WarehouseDockEnv(max_steps=MAX_STEPS)
+        _validate_required_env()
+
+        if POLICY_MODE == "llm":
+            client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
+
+        env = WarehouseDockEnv(seed=ENV_SEED, max_steps=MAX_STEPS)
 
         obs = env.reset()
         obs_dict = _as_obs_dict(obs)
@@ -199,15 +231,20 @@ def run_episode() -> None:
             last_action_error: Optional[str] = None
             action_text = "0"
 
-            try:
-                action_text = request_action_text(client, step, obs_dict, history)
-            except Exception as exc:  # Keep runtime alive and continue with HOLD.
-                action_text = "0"
-                last_action_error = " ".join(str(exc).split())
+            if POLICY_MODE == "llm":
+                try:
+                    if client is None:
+                        raise RuntimeError("LLM client not initialized")
+                    action_text = request_action_text(client, step, obs_dict, history)
+                except Exception as exc:  # Keep runtime alive and continue with HOLD.
+                    action_text = "0"
+                    last_action_error = " ".join(str(exc).split())
 
-            action, parse_error = parse_action(action_text)
-            if parse_error:
-                last_action_error = parse_error
+                action, parse_error = parse_action(action_text)
+                if parse_error:
+                    last_action_error = parse_error
+            else:
+                action = select_heuristic_action(obs_dict)
 
             next_obs, reward, done, info = env.step(action)
             next_obs_dict = _as_obs_dict(next_obs)
