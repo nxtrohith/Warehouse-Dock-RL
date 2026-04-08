@@ -48,7 +48,6 @@ def _load_local_dotenv(path: str = ".env") -> None:
 _load_local_dotenv()
 
 
-# Required by organizer environment configuration.
 LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
 HF_TOKEN = os.getenv("HF_TOKEN")
 API_BASE_URL = os.getenv("API_BASE_URL")
@@ -75,6 +74,22 @@ def _validate_required_env() -> None:
         missing.append("HF_TOKEN")
     if missing:
         raise RuntimeError(f"Missing required environment variable(s): {', '.join(missing)}")
+
+
+def _effective_policy_mode(policy_mode: str) -> str:
+    if policy_mode not in VALID_POLICY_MODES:
+        print(f"[WARN] invalid_policy_mode={policy_mode}; falling back to heuristic", flush=True)
+        return "heuristic"
+
+    if policy_mode == "llm":
+        if not API_BASE_URL or not MODEL_NAME or not HF_TOKEN:
+            print(
+                "[WARN] missing_llm_env; falling back to heuristic",
+                flush=True,
+            )
+            return "heuristic"
+
+    return policy_mode
 
 
 SYSTEM_PROMPT = textwrap.dedent(
@@ -202,19 +217,16 @@ def run_episode() -> None:
     idle_dock_steps = 0
     baseline_reward = 0.0
 
+    policy_mode = _effective_policy_mode(POLICY_MODE)
+
     log_start(task=TASK_NAME, env=BENCHMARK, model=MODEL_NAME or "")
 
     try:
         if TASK_NAME not in VALID_TASK_NAMES:
             raise RuntimeError(f"Invalid TASK_NAME '{TASK_NAME}'. Expected one of: {sorted(VALID_TASK_NAMES)}")
-        if POLICY_MODE not in VALID_POLICY_MODES:
-            raise RuntimeError(
-                f"Invalid POLICY_MODE '{POLICY_MODE}'. Expected one of: {sorted(VALID_POLICY_MODES)}"
-            )
 
-        _validate_required_env()
-
-        if POLICY_MODE == "llm":
+        if policy_mode == "llm":
+            _validate_required_env()
             client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
 
         env = WarehouseDockEnv(seed=ENV_SEED, max_steps=MAX_STEPS)
@@ -231,7 +243,7 @@ def run_episode() -> None:
             last_action_error: Optional[str] = None
             action_text = "0"
 
-            if POLICY_MODE == "llm":
+            if policy_mode == "llm":
                 try:
                     if client is None:
                         raise RuntimeError("LLM client not initialized")
