@@ -39,10 +39,11 @@ def root() -> Dict[str, str]:
 
 
 @app.post("/reset")
-def reset(payload: ResetRequest) -> Dict[str, Any]:
+def reset(payload: Optional[ResetRequest] = None) -> Dict[str, Any]:
     global _env
+    request = payload or ResetRequest()
     with _env_lock:
-        _env = WarehouseDockEnv(seed=payload.seed, max_steps=payload.max_steps)
+        _env = WarehouseDockEnv(seed=request.seed, max_steps=request.max_steps)
         observation = _env.reset()
         return {
             "observation": _as_dict(observation),
