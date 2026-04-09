@@ -164,7 +164,11 @@ Required environment variables:
 
 - API_BASE_URL
 - MODEL_NAME
-- HF_TOKEN
+- API_KEY
+
+Compatibility note:
+
+- HF_TOKEN is accepted as a fallback when API_KEY is not set.
 
 Common optional variables include TASK_NAME, MAX_STEPS, ENV_SEED, and POLICY_MODE.
 

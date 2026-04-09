@@ -49,7 +49,7 @@ _load_local_dotenv()
 
 
 LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
-HF_TOKEN = os.getenv("HF_TOKEN")
+API_KEY = os.getenv("API_KEY") or os.getenv("HF_TOKEN")
 API_BASE_URL = os.getenv("API_BASE_URL")
 MODEL_NAME = os.getenv("MODEL_NAME")
 
@@ -59,9 +59,7 @@ MAX_STEPS = int(os.getenv("MAX_STEPS", "32"))
 ENV_SEED = int(os.getenv("ENV_SEED", "7"))
 TEMPERATURE = float(os.getenv("TEMPERATURE", "0.2"))
 MAX_TOKENS = int(os.getenv("MAX_TOKENS", "64"))
-POLICY_MODE = os.getenv("POLICY_MODE", "heuristic").strip().lower()
 VALID_TASK_NAMES = {"task_1", "task_2", "task_3"}
-VALID_POLICY_MODES = {"heuristic", "llm"}
 
 
 def _validate_required_env() -> None:
@@ -70,26 +68,10 @@ def _validate_required_env() -> None:
         missing.append("API_BASE_URL")
     if not MODEL_NAME:
         missing.append("MODEL_NAME")
-    if not HF_TOKEN:
-        missing.append("HF_TOKEN")
+    if not API_KEY:
+        missing.append("API_KEY")
     if missing:
         raise RuntimeError(f"Missing required environment variable(s): {', '.join(missing)}")
-
-
-def _effective_policy_mode(policy_mode: str) -> str:
-    if policy_mode not in VALID_POLICY_MODES:
-        print(f"[WARN] invalid_policy_mode={policy_mode}; falling back to heuristic", flush=True)
-        return "heuristic"
-
-    if policy_mode == "llm":
-        if not API_BASE_URL or not MODEL_NAME or not HF_TOKEN:
-            print(
-                "[WARN] missing_llm_env; falling back to heuristic",
-                flush=True,
-            )
-            return "heuristic"
-
-    return policy_mode
 
 
 SYSTEM_PROMPT = textwrap.dedent(
@@ -217,17 +199,14 @@ def run_episode() -> None:
     idle_dock_steps = 0
     baseline_reward = 0.0
 
-    policy_mode = _effective_policy_mode(POLICY_MODE)
-
     log_start(task=TASK_NAME, env=BENCHMARK, model=MODEL_NAME or "")
 
     try:
         if TASK_NAME not in VALID_TASK_NAMES:
             raise RuntimeError(f"Invalid TASK_NAME '{TASK_NAME}'. Expected one of: {sorted(VALID_TASK_NAMES)}")
 
-        if policy_mode == "llm":
-            _validate_required_env()
-            client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
+        _validate_required_env()
+        client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
 
         env = WarehouseDockEnv(seed=ENV_SEED, max_steps=MAX_STEPS)
 
@@ -243,20 +222,17 @@ def run_episode() -> None:
             last_action_error: Optional[str] = None
             action_text = "0"
 
-            if policy_mode == "llm":
-                try:
-                    if client is None:
-                        raise RuntimeError("LLM client not initialized")
-                    action_text = request_action_text(client, step, obs_dict, history)
-                except Exception as exc:  # Keep runtime alive and continue with HOLD.
-                    action_text = "0"
-                    last_action_error = " ".join(str(exc).split())
+            try:
+                if client is None:
+                    raise RuntimeError("LLM client not initialized")
+                action_text = request_action_text(client, step, obs_dict, history)
+            except Exception as exc:  # Keep runtime alive and continue with HOLD.
+                action_text = "0"
+                last_action_error = " ".join(str(exc).split())
 
-                action, parse_error = parse_action(action_text)
-                if parse_error:
-                    last_action_error = parse_error
-            else:
-                action = select_heuristic_action(obs_dict)
+            action, parse_error = parse_action(action_text)
+            if parse_error:
+                last_action_error = parse_error
 
             next_obs, reward, done, info = env.step(action)
             next_obs_dict = _as_obs_dict(next_obs)
