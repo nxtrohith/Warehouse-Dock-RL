@@ -51,7 +51,8 @@ _load_local_dotenv()
 LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
 API_KEY = os.getenv("API_KEY") or os.getenv("HF_TOKEN")
 API_BASE_URL = os.getenv("API_BASE_URL")
-MODEL_NAME = os.getenv("MODEL_NAME")
+DEFAULT_MODEL_NAME = "openai/gpt-oss-20b:free"
+MODEL_NAME = os.getenv("MODEL_NAME") or os.getenv("OPENAI_MODEL") or DEFAULT_MODEL_NAME
 
 TASK_NAME = os.getenv("TASK_NAME", "task_1")
 BENCHMARK = os.getenv("BENCHMARK", "warehouse_dock")
@@ -66,8 +67,6 @@ def _validate_required_env() -> None:
     missing: List[str] = []
     if not API_BASE_URL:
         missing.append("API_BASE_URL")
-    if not MODEL_NAME:
-        missing.append("MODEL_NAME")
     if not API_KEY:
         missing.append("API_KEY")
     if missing:

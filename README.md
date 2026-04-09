@@ -163,8 +163,11 @@ The inference pipeline supports an OpenAI-compatible API endpoint for action sel
 Required environment variables:
 
 - API_BASE_URL
-- MODEL_NAME
 - API_KEY
+
+Optional environment variables:
+
+- MODEL_NAME (defaults to openai/gpt-oss-20b:free when unset)
 
 Compatibility note:
 
